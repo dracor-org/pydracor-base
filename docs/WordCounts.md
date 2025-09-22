@@ -5,9 +5,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**text** | **int** |  | 
-**stage** | **int** |  | 
-**sp** | **int** |  | 
+**text** | **float** |  | 
+**stage** | **float** |  | 
+**sp** | **float** |  | 
 
 ## Example
 

@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "pydracor_base"
-version = "1.0.0"
+version = "1.0.1"
 description = "DraCor API"
-authors = ["OpenAPI Generator Community, Henny Sluyter-Gäthje"]
+authors = ["OpenAPI Generator Community, Henny Sluyter-Gäthje <sluytergaeth@uni-potsdam.de>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/dracor-org/pydracor-base"
