@@ -91,7 +91,7 @@ jobs:
 
       - name: Smoke test
         if: steps.version.outputs.skip != 'true'
-        run: python generator/smoke_test.py http://localhost:8080/exist/restxq/v1 "${{ steps.version.outputs.api }}"
+        run: python generator/smoke.py http://localhost:8080/exist/restxq/v1 "${{ steps.version.outputs.api }}"
 
       - name: Open a pull request
         if: steps.version.outputs.skip != 'true'

@@ -41,11 +41,11 @@ generated client. Before changing `GENERATOR_VERSION`, check that the
 templates still work: generating the current release again should change
 nothing but the generator version.
 
-`generator/smoke_test.py` checks a generated package against a running API:
+`generator/smoke.py` checks a generated package against a running API:
 
 ```sh
 python -m pip install .
-python generator/smoke_test.py http://localhost:8080/exist/restxq/v1 1.5.0-rc.1
+python generator/smoke.py http://localhost:8080/exist/restxq/v1 1.5.0-rc.1
 ```
 
 ## Automatically, for every API release

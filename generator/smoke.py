@@ -1,7 +1,7 @@
 """Smoke test of a freshly generated pydracor_base against a running DraCor API.
 
-Usage: python generator/smoke_test.py <api-base-url> <api-version>
-e.g.   python generator/smoke_test.py http://localhost:8080/exist/restxq/v1 1.5.0-rc.1
+Usage: python generator/smoke.py <api-base-url> <api-version>
+e.g.   python generator/smoke.py http://localhost:8080/exist/restxq/v1 1.5.0-rc.1
 
 Checks that the generated client can talk to the API of the version it was
 generated for: /info is parsed and reports that version, and /corpora,
