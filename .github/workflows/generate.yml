@@ -1,0 +1,110 @@
+# Generates pydracor_base from the OpenAPI specification of a DraCor API release,
+# tests it against that API version and opens a pull request with the result.
+# Merging the pull request releases the package (release.yml). See GENERATING.md.
+name: Generate from a DraCor API release
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      api_version:
+        description: "Release tag of dracor-org/dracor-api (default: the newest release, including pre-releases)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine the API release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.api_version }}
+        run: |
+          tag="${INPUT_VERSION:-$(gh api repos/dracor-org/dracor-api/releases \
+            --jq '[.[] | select(.draft | not)][0].tag_name')}"
+          package="$(python3 generator/pep440.py "$tag")"
+          { echo "tag=$tag"; echo "api=${tag#v}"; echo "package=$package"; } >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$package" >/dev/null \
+            || git ls-remote --exit-code --heads origin "generate/$package" >/dev/null; then
+            echo "pydracor_base $package exists or is waiting for review; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate
+        if: steps.version.outputs.skip != 'true'
+        run: generator/generate.sh "${{ steps.version.outputs.tag }}"
+
+      - uses: actions/setup-python@v5
+        if: steps.version.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install and run the generated tests
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          python -m pip install . pytest
+          pytest -q test
+
+      - name: Start the DraCor API and the metrics service of this release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          API: ${{ steps.version.outputs.api }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # the metrics service version that belongs to the API release, if its
+          # compose file names one
+          metrics="$(curl -fsSL "https://raw.githubusercontent.com/dracor-org/dracor-api/$TAG/compose.yml" \
+            | grep -oE 'dracor/metrics:[^"[:space:]]+' | head -1 || true)"
+          docker network create dracor
+          docker run -d --name metrics --network dracor "${metrics:-dracor/metrics:latest}"
+          docker run -d --name api --network dracor -p 8080:8080 \
+            -e EXIST_PASSWORD= -e EXIST_ENV=development \
+            -e METRICS_SERVER=http://metrics:8030/metrics/ \
+            "dracor/api:$API"
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:8080/exist/restxq/v1/info >/dev/null && exit 0
+            sleep 5
+          done
+          echo "API did not start"; docker logs api; exit 1
+
+      - name: Load the test corpus
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          base=http://localhost:8080/exist/restxq/v1
+          curl -sf -u admin: -X POST "$base/corpora" -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -d '{"name": "test", "title": "Test Drama Corpus", "repository": "https://github.com/dracor-org/testdracor"}'
+          curl -sf -u admin: -X POST "$base/corpora/test" -H 'Accept: application/json'
+          for _ in $(seq 1 60); do
+            curl -sf "$base/corpora" | grep -q '"commit"' && exit 0
+            sleep 5
+          done
+          echo "test corpus was not loaded"; docker logs api; exit 1
+
+      - name: Smoke test
+        if: steps.version.outputs.skip != 'true'
+        run: python generator/smoke_test.py http://localhost:8080/exist/restxq/v1 "${{ steps.version.outputs.api }}"
+
+      - name: Open a pull request
+        if: steps.version.outputs.skip != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: generate/${{ steps.version.outputs.package }}
+          commit-message: Generate pydracor_base ${{ steps.version.outputs.package }} for DraCor API ${{ steps.version.outputs.api }}
+          title: pydracor_base ${{ steps.version.outputs.package }} for DraCor API ${{ steps.version.outputs.api }}
+          body: |
+            Generated from `api.yaml` of [dracor-api ${{ steps.version.outputs.tag }}](https://github.com/dracor-org/dracor-api/releases/tag/${{ steps.version.outputs.tag }}) by the workflow "Generate from a DraCor API release".
+
+            - the generated tests passed
+            - the smoke test passed against `dracor/api:${{ steps.version.outputs.api }}` with the test corpus
+
+            Please review the diff (it shows what changed in the API). **Merging this pull request releases pydracor_base ${{ steps.version.outputs.package }}** on GitHub, PyPI and Zenodo.
+          labels: generated
