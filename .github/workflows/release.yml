@@ -1,0 +1,77 @@
+# Releases pydracor_base when a pull request opened by generate.yml is merged:
+# a GitHub release with the built package attached (archived on Zenodo by the
+# integration). Publishing on PyPI (trusted publishing) is optional and runs
+# only if the repository variable PUBLISH_TO_PYPI is "true". See GENERATING.md.
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  release:
+    if: github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'generate/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read the versions
+        id: version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          package="${HEAD_REF#generate/}"
+          [[ "$package" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?(\.post[0-9]+)?$ ]] \
+            || { echo "unexpected branch name: $HEAD_REF"; exit 1; }
+          api="$(grep -m1 -oE 'API version: [^ ]+' README.md | cut -d' ' -f3)"
+          grep -q "version = \"$package\"" pyproject.toml \
+            || { echo "pyproject.toml does not have version $package"; exit 1; }
+          { echo "package=$package"; echo "api=$api"; } >> "$GITHUB_OUTPUT"
+          if [[ "$package" =~ (a|b|rc)[0-9]+$ ]]; then echo "prerelease=--prerelease" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Build
+        run: |
+          python -m pip install build
+          python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ steps.version.outputs.package }}
+          API: ${{ steps.version.outputs.api }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release create "$PACKAGE" dist/* ${{ steps.version.outputs.prerelease }} \
+            --target "${{ github.event.pull_request.merge_commit_sha }}" \
+            --title "$PACKAGE (DraCor API $API)" \
+            --notes "pydracor_base $PACKAGE, generated from the OpenAPI specification of [DraCor API $API](https://github.com/dracor-org/dracor-api/releases/tag/$API). Install: \`pip install git+https://github.com/$REPO@$PACKAGE\`, or the wheel attached to this release."
+
+  pypi:
+    needs: release
+    if: vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

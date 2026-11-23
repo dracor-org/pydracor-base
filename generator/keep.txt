@@ -1,0 +1,9 @@
+# Files maintained by hand: generator/generate.sh does not overwrite or delete them
+.git/
+generator/
+LICENSE
+GENERATING.md
+.github/workflows/generate.yml
+.github/workflows/release.yml
+.zenodo.json
+CITATION.cff
