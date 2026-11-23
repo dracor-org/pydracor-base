@@ -5,3 +5,5 @@ LICENSE
 GENERATING.md
 .github/workflows/generate.yml
 .github/workflows/release.yml
+.zenodo.json
+CITATION.cff
