@@ -1,6 +1,7 @@
 # Releases pydracor_base when a pull request opened by generate.yml is merged:
-# GitHub release (archived on Zenodo by the integration) and PyPI upload with
-# trusted publishing. See GENERATING.md for the one-time setup.
+# a GitHub release with the built package attached (archived on Zenodo by the
+# integration). Publishing on PyPI (trusted publishing) is optional and runs
+# only if the repository variable PUBLISH_TO_PYPI is "true". See GENERATING.md.
 name: Release
 
 on:
@@ -12,10 +13,8 @@ jobs:
   release:
     if: github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'generate/')
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,16 +43,35 @@ jobs:
           python -m pip install build
           python -m build
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE: ${{ steps.version.outputs.package }}
           API: ${{ steps.version.outputs.api }}
+          REPO: ${{ github.repository }}
         run: |
           gh release create "$PACKAGE" dist/* ${{ steps.version.outputs.prerelease }} \
             --target "${{ github.event.pull_request.merge_commit_sha }}" \
             --title "$PACKAGE (DraCor API $API)" \
-            --notes "pydracor_base $PACKAGE, generated from the OpenAPI specification of [DraCor API $API](https://github.com/dracor-org/dracor-api/releases/tag/$API). Install: \`pip install pydracor-base==$PACKAGE\`."
+            --notes "pydracor_base $PACKAGE, generated from the OpenAPI specification of [DraCor API $API](https://github.com/dracor-org/dracor-api/releases/tag/$API). Install: \`pip install git+https://github.com/$REPO@$PACKAGE\`, or the wheel attached to this release."
+
+  pypi:
+    needs: release
+    if: vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

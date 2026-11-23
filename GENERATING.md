@@ -58,25 +58,36 @@ python generator/smoke.py http://localhost:8080/exist/restxq/v1 1.5.0-rc.1
    test, and opens a pull request `generate/<version>`.
 2. A maintainer reviews the pull request. The diff shows what changed in the
    API.
-3. **`.github/workflows/release.yml`**: merging the pull request publishes the
-   package on PyPI and creates a GitHub release, which the Zenodo integration
-   archives.
+3. **`.github/workflows/release.yml`**: merging the pull request builds the
+   package and creates a GitHub release with the wheel and the source archive
+   attached, which the Zenodo integration archives. Install a release with
+   `pip install git+https://github.com/dracor-org/pydracor-base@<version>`.
+   Publishing on PyPI is optional (see below).
 
 Then update the pinned version in pydracor (`pydracor-base==…`) and adapt
 pydracor where the API changed.
 
 ## One-time setup
 
-These settings can only be made by an administrator of the repository or of
-the PyPI project:
+These settings can only be made by an administrator of the repository:
 
 - **GitHub › Settings › Actions › General:** allow GitHub Actions to create
   pull requests.
-- **GitHub › Settings › Environments:** create the environment `pypi`
-  (optionally with required reviewers, as a second check before publishing).
-- **PyPI › pydracor-base › Publishing:** add a trusted publisher for the
-  repository `dracor-org/pydracor-base`, workflow `release.yml`, environment
-  `pypi`.
 - **Zenodo:** switch on the GitHub integration for this repository (DraCor
   community).
 - Tag the current state: `1.0.1` (generated from API 1.1.4).
+
+### Publishing on PyPI (optional)
+
+Releases are published on PyPI only if the repository variable
+`PUBLISH_TO_PYPI` is `true`. To switch it on:
+
+- **PyPI › pydracor-base › Publishing** (an owner of the PyPI project): add a
+  trusted publisher for the repository `dracor-org/pydracor-base`, workflow
+  `release.yml`, environment `pypi`.
+- **GitHub › Settings › Environments:** create the environment `pypi`
+  (optionally with required reviewers, as a second check before publishing).
+- **GitHub › Settings › Secrets and variables › Actions › Variables:** set
+  `PUBLISH_TO_PYPI` to `true`.
+
+Releases made before that are not on PyPI; upload them by hand if needed.
